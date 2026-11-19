@@ -275,13 +275,47 @@ class SalesDataStore:
             return self._df
 
     async def _load_data(self) -> None:
-        """Fetch the full view from OperationsDB into in-memory pandas DataFrame."""
+        """Fetch the full view from OperationsDB into in-memory pandas DataFrame with strict memory controls for 512MB RAM."""
         target_db = get_current_database_target() or settings.api_database or "OperationsDB"
-        logger.info("Initiating dataset load from VD_Sales_Dashboard (%s)", target_db)
+        logger.info("Initiating low-memory dataset load from VD_Sales_Dashboard (%s)", target_db)
         self._load_progress = "Fetching initial batch..."
 
         batch_size = 10000
         stable_order = "Document, DocEntry, LineNum"
+
+        categorical_cols = [
+            DOC_COL, DOC_TYPE_COL, SALES_TYPE_COL, SALES_FROM_LOC_COL,
+            BP_CODE_COL, BP_NAME_COL, GROUP_COL, INDUSTRY_COL, BP_PROJECT_COL,
+            CITY_COL, STATE_COL, COUNTRY_COL, REGION_COL,
+            ITEM_GROUP_COL, SUB_GROUP1_COL, SUB_GROUP2_COL,
+            ITEM_CODE_COL, ITEM_NAME_COL, BRAND_COL, MOC_COL, MADE_TO_ORDER_COL, UOM_COL,
+            ROW_SALES_EMP_COL, BP_SALES_EMP_COL,
+        ] + ITEM_ATTRIBUTE_COLUMNS
+
+        def _optimize_chunk(chunk_df: pd.DataFrame) -> pd.DataFrame:
+            if REV_COL in chunk_df.columns:
+                chunk_df[REV_COL] = pd.to_numeric(chunk_df[REV_COL], errors="coerce").fillna(0.0).astype("float64")
+            if GP_COL in chunk_df.columns:
+                chunk_df[GP_COL] = pd.to_numeric(chunk_df[GP_COL], errors="coerce").fillna(0.0).astype("float64")
+            if QTY_COL in chunk_df.columns:
+                chunk_df[QTY_COL] = pd.to_numeric(chunk_df[QTY_COL], errors="coerce").fillna(0.0).astype("float32")
+
+            for p_col in (YEAR_COL, MONTH_COL, WEEK_COL, DAY_COL):
+                if p_col in chunk_df.columns:
+                    chunk_df[p_col] = pd.to_numeric(chunk_df[p_col], errors="coerce").fillna(0).astype("int16")
+
+            if DOC_DATE_COL in chunk_df.columns:
+                doc_dates = pd.to_datetime(chunk_df[DOC_DATE_COL], errors="coerce")
+                chunk_df["_doc_date_str"] = doc_dates.dt.strftime("%Y-%m-%d").fillna("")
+                chunk_df["_doc_date_display"] = doc_dates.dt.strftime("%d-%b-%Y").fillna("")
+
+            for c in categorical_cols:
+                if c in chunk_df.columns:
+                    s = chunk_df[c].fillna("(Blank)").astype(str).str.strip()
+                    chunk_df[c] = s.replace({"": "(Blank)", "None": "(Blank)", "nan": "(Blank)", "Null": "(Blank)", "null": "(Blank)"})
+            return chunk_df
+
+        # Fetch page 1 to get total pages
         first_resp = await api_request(
             table="VD_Sales_Dashboard",
             action="select",
@@ -293,20 +327,20 @@ class SalesDataStore:
         )
 
         total_rows = int(first_resp.get("totalRows", 0) or 0)
-        total_pages = int(first_resp.get("totalPages", 1) or 1)
+        total_pages = int(first_resp.get("totalPages", 1) or ((total_rows + batch_size - 1) // batch_size))
         page_frames: list[pd.DataFrame] = []
 
         first_rows = first_resp.get("data") or []
         if first_rows:
-            chunk1 = pd.DataFrame(first_rows)
+            chunk1 = _optimize_chunk(pd.DataFrame(first_rows))
             page_frames.append(chunk1)
             self._loaded_so_far = len(chunk1)
-            self._load_progress = f"Loaded {self._loaded_so_far:,} of {total_rows:,} records..."
+            self._load_progress = f"Loaded {self._loaded_so_far:,} of {total_rows:,} records (batch 1/{total_pages})..."
         del first_rows, first_resp
         gc.collect()
 
         if total_pages > 1:
-            sem = asyncio.Semaphore(2)
+            sem = asyncio.Semaphore(3)
 
             async def _fetch_page(page_num: int) -> pd.DataFrame:
                 async with sem:
@@ -320,62 +354,42 @@ class SalesDataStore:
                         database=target_db,
                     )
                     rows = resp.get("data") or []
-                    return pd.DataFrame(rows)
+                    if rows:
+                        chunk = _optimize_chunk(pd.DataFrame(rows))
+                    else:
+                        chunk = pd.DataFrame()
+                    del resp, rows
+                    gc.collect()
+                    self._loaded_so_far += len(chunk)
+                    self._load_progress = f"Loaded {min(self._loaded_so_far, total_rows):,} of {total_rows:,} records (batch {page_num}/{total_pages})..."
+                    logger.info("Loaded batch %d/%d (%d rows, progress: %s)", page_num, total_pages, len(chunk), self._load_progress)
+                    return chunk
 
             tasks = [_fetch_page(p) for p in range(2, total_pages + 1)]
-            results = await asyncio.gather(*tasks)
-            for chunk in results:
-                if not chunk.empty:
-                    page_frames.append(chunk)
-                    self._loaded_so_far += len(chunk)
-                    self._load_progress = f"Loaded {self._loaded_so_far:,} of {total_rows:,} records..."
+            remaining_frames = await asyncio.gather(*tasks)
+            page_frames.extend([f for f in remaining_frames if not f.empty])
+            del remaining_frames
+            gc.collect()
 
         df = pd.concat(page_frames, ignore_index=True)
         del page_frames
         gc.collect()
 
-        # Strict numeric & date processing
-        df[REV_COL] = pd.to_numeric(df[REV_COL], errors="coerce").fillna(0.0).astype("float64")
-        df[GP_COL] = pd.to_numeric(df[GP_COL], errors="coerce").fillna(0.0).astype("float64")
-        df[QTY_COL] = pd.to_numeric(df[QTY_COL], errors="coerce").fillna(0.0).astype("float64")
-
-        # Period columns as integers
-        for p_col in [YEAR_COL, MONTH_COL, WEEK_COL, DAY_COL]:
-            if p_col in df.columns:
-                df[p_col] = pd.to_numeric(df[p_col], errors="coerce").fillna(0).astype("int32")
-
-        # Format doc date string column
-        if DOC_DATE_COL in df.columns:
-            doc_dates = pd.to_datetime(df[DOC_DATE_COL], errors="coerce")
-            df["_doc_date_dt"] = doc_dates
-            df["_doc_date_str"] = doc_dates.dt.strftime("%Y-%m-%d").fillna("")
-            df["_doc_date_display"] = doc_dates.dt.strftime("%d-%b-%Y").fillna("")
-
-        # Normalize categorical text and convert to pandas category dtype
-        # This dramatically optimizes value_counts and facet filtering (500x speedup)
-        categorical_cols = [
-            DOC_COL, DOC_TYPE_COL, SALES_TYPE_COL, SALES_FROM_LOC_COL,
-            BP_CODE_COL, BP_NAME_COL, GROUP_COL, INDUSTRY_COL, BP_PROJECT_COL,
-            CITY_COL, STATE_COL, COUNTRY_COL, REGION_COL,
-            ITEM_GROUP_COL, SUB_GROUP1_COL, SUB_GROUP2_COL,
-            ITEM_CODE_COL, ITEM_NAME_COL, BRAND_COL, MOC_COL, MADE_TO_ORDER_COL, UOM_COL,
-            ROW_SALES_EMP_COL, BP_SALES_EMP_COL,
-        ] + ITEM_ATTRIBUTE_COLUMNS
-
+        # Convert categorical text columns to category dtype for ultra-fast aggregation & low RAM
         for col in categorical_cols:
             if col in df.columns:
-                s = df[col].fillna("(Blank)").astype(str).str.strip()
-                s = s.replace({"": "(Blank)", "None": "(Blank)", "nan": "(Blank)", "Null": "(Blank)", "null": "(Blank)"})
-                # Convert to category for blazing fast groupby & value_counts
-                df[col] = s.astype("category")
+                df[col] = df[col].astype("category")
+
+        gc.collect()
 
         self._df = df
         self._total_records = len(df)
         self._data_as_of = datetime.now(timezone.utc)
         self._database = target_db
         clear_query_caches()
-        logger.info("Successfully loaded %d records from VD_Sales_Dashboard (Memory: %.1f MB)",
-                    self._total_records, float(df.memory_usage(deep=True).sum()) / (1024 * 1024))
+        mem_mb = float(df.memory_usage(deep=True).sum()) / (1024 * 1024)
+        logger.info("Successfully loaded %d records from VD_Sales_Dashboard (RAM: %.1f MB)",
+                    self._total_records, mem_mb)
 
 
 data_store = SalesDataStore.get_instance()

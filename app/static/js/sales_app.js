@@ -198,11 +198,16 @@
         }
     }
 
+    let pollFailures = 0;
     async function pollDatasetLoad() {
         showLoading("Loading Sales Data...", "Checking in-memory dataset");
         try {
             const resp = await fetch("/api/sales/dataset");
+            if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`);
+            }
             const data = await resp.json();
+            pollFailures = 0;
 
             if (data.status === "success") {
                 AppState.isLoaded = true;
@@ -212,14 +217,18 @@
                 await executeQuery();
             } else if (data.status === "loading") {
                 if (DOM.loadingSubText) DOM.loadingSubText.textContent = data.progress || "Loading records...";
-                setTimeout(pollDatasetLoad, 1000);
+                setTimeout(pollDatasetLoad, 800);
             } else {
                 hideLoading();
                 alert("Failed to load dataset: " + (data.error || "Unknown error"));
             }
         } catch (err) {
-            hideLoading();
-            console.error("Dataset check failed:", err);
+            pollFailures++;
+            console.warn("Dataset check waiting for server (attempt " + pollFailures + "):", err);
+            if (DOM.loadingSubText) {
+                DOM.loadingSubText.textContent = `Connecting to server (attempt ${pollFailures})...`;
+            }
+            setTimeout(pollDatasetLoad, 2000);
         }
     }
 
