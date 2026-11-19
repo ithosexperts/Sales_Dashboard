@@ -1,0 +1,719 @@
+{% extends "base.html" %}
+
+{% block title %}Sales Dashboard{% endblock %}
+
+{% block content %}
+<!-- Loading Overlay (DL1, DL4) -->
+<div id="loadingOverlay" class="active">
+    <div class="spinner-border text-light mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
+    <div class="text-white fw-semibold fs-5" id="loadingText">Loading Sales Data...</div>
+    <div class="text-white-50 small mt-1" id="loadingSubText">Reading in-memory dataset from OperationsDB</div>
+</div>
+
+<!-- Print-Only Report Header (HD3 PDF Export) -->
+<div class="print-only-header d-none" id="pdfReportHeader">
+    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+        <div>
+            <h3 class="fw-bold mb-0 text-primary">Sales Dashboard Report</h3>
+            <span class="text-muted small">HoseXperts Enterprise Analytics &bull; {{ database or 'OperationsDB' }} &bull; Source: <code>VD_Sales_Dashboard</code></span>
+        </div>
+        <div class="text-end small">
+            <div class="fw-semibold text-dark" id="pdfReportGranularity">Monthly &bull; Revenue ₹</div>
+            <div class="text-muted" id="pdfReportDate">{{ data_as_of or 'Data as of --' }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Header / Action Bar (HD2) -->
+<div class="row align-items-center mb-3 g-2" id="dashboardHeaderRow">
+    <div class="col-md-6">
+        <h4 class="fw-bold mb-0 text-dark">
+            <i class="bi bi-graph-up-arrow text-primary me-2"></i>Sales Dashboard
+        </h4>
+        <div class="text-muted small mt-1 d-flex flex-wrap align-items-center gap-2">
+            <span><i class="bi bi-clock-history me-1"></i><span id="dataAsOfText">{{ data_as_of or 'Data as of --' }}</span></span>
+            <span>&bull;</span>
+            <span class="badge bg-light text-dark border"><i class="bi bi-database me-1"></i>{{ database or 'OperationsDB' }}</span>
+            <span>&bull;</span>
+            <span class="text-secondary">Source: <code>VD_Sales_Dashboard</code></span>
+        </div>
+    </div>
+    <div class="col-md-6 text-md-end d-flex justify-content-md-end gap-2 align-items-center">
+        <button id="btnToggleFilters" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm" type="button" title="Collapse or Expand Filters Sidebar">
+            <i class="bi bi-layout-sidebar-inset" id="iconToggleSidebar"></i>
+            <span id="textToggleSidebar">Hide Filters</span>
+        </button>
+        <button id="btnResetFilters" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm" type="button" title="Clear all filter selections">
+            <i class="bi bi-x-circle"></i>
+            <span>Reset Filters</span>
+        </button>
+        <button id="btnExportPdf" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1 shadow-sm" type="button" title="Export main chart and 15 breakdown charts to PDF">
+            <i class="bi bi-file-earmark-pdf"></i>
+            <span>Export PDF</span>
+        </button>
+        <button id="btnRefreshData" class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm" type="button" title="Reload live data from view">
+            <i class="bi bi-arrow-clockwise"></i>
+            <span>Refresh Data</span>
+        </button>
+    </div>
+</div>
+
+<!-- Granularity Panel (FL1, FL2, FL3) -->
+<div class="card selection-card stage-card mb-4 border-0 shadow-sm" id="granularityCard">
+    <div class="card-body p-3 p-lg-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h5 class="granularity-header mb-0">GRANULARITY</h5>
+            <button id="btnResetGranularity" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1 shadow-sm" type="button" title="Reset Period and Measure to defaults">
+                <i class="bi bi-arrow-counterclockwise"></i>
+                <span>Reset Granularity</span>
+            </button>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-4 gap-xl-5">
+            <!-- Period Selector -->
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <label class="selection-group-label">PERIOD:</label>
+                <div class="btn-group btn-group-sm btn-group-toggle" role="group" id="granularityGroup" aria-label="Period granularity">
+                    <input type="radio" class="btn-check" name="granularity" id="granDaily" value="Daily" autocomplete="off">
+                    <label class="btn btn-outline-primary" for="granDaily">Daily</label>
+
+                    <input type="radio" class="btn-check" name="granularity" id="granWeekly" value="Weekly" autocomplete="off">
+                    <label class="btn btn-outline-primary" for="granWeekly">Weekly</label>
+
+                    <input type="radio" class="btn-check" name="granularity" id="granMonthly" value="Monthly" autocomplete="off" checked>
+                    <label class="btn btn-outline-primary" for="granMonthly">Monthly</label>
+
+                    <input type="radio" class="btn-check" name="granularity" id="granYearly" value="Yearly" autocomplete="off">
+                    <label class="btn btn-outline-primary" for="granYearly">Yearly</label>
+                </div>
+            </div>
+
+            <!-- Measure Selector -->
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <label class="selection-group-label">MEASURE:</label>
+                <div class="btn-group btn-group-sm btn-group-toggle" role="group" id="measureGroup" aria-label="Measure">
+                    <input type="radio" class="btn-check" name="measure" id="measRevenue" value="Revenue ₹" autocomplete="off" checked>
+                    <label class="btn btn-outline-primary" for="measRevenue"><i class="bi bi-currency-rupee me-1"></i>Revenue ₹</label>
+
+                    <input type="radio" class="btn-check" name="measure" id="measQuantity" value="Quantity" autocomplete="off">
+                    <label class="btn btn-outline-primary" for="measQuantity"><i class="bi bi-boxes me-1"></i>Quantity</label>
+
+                    <input type="radio" class="btn-check" name="measure" id="measGrossProfit" value="Gross Profit ₹" autocomplete="off">
+                    <label class="btn btn-outline-primary" for="measGrossProfit"><i class="bi bi-graph-up me-1"></i>Gross Profit ₹</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Four Summary KPI Cards (HD4, HD5, HD6) -->
+<div class="row g-3 mb-4" id="kpiCardsRow">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-card">
+            <div class="kpi-title">FILTERED REVENUE</div>
+            <div class="kpi-value text-primary" id="cardFilteredRevenueCompact">{{ total_revenue_compact or '₹0.00' }}</div>
+            <div class="kpi-subtext" id="cardFilteredRevenueExact">Exact: {{ total_revenue_formatted or '₹0.00' }}</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-card">
+            <div class="kpi-title">FILTERED GROSS PROFIT</div>
+            <div class="kpi-value text-success" id="cardFilteredGrossProfit">{{ total_gross_profit_formatted or '₹0.00' }}</div>
+            <div class="kpi-subtext">Margin: <span class="fw-bold" id="cardMarginPct">{{ margin_pct_formatted or '–' }}</span></div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-card">
+            <div class="kpi-title">FILTERED ROWS</div>
+            <div class="kpi-value text-dark" id="cardFilteredRows">{{ "{:,}".format(record_count) if record_count else '0' }}</div>
+            <div class="kpi-subtext">Active line items</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-card">
+            <div class="kpi-title">GRANULARITY</div>
+            <div class="kpi-value text-secondary fs-4" id="cardGranularity">Monthly &bull; Revenue</div>
+            <div class="kpi-subtext">Current period & measure</div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Grid: Left Filter Panel + Right Analytics Content -->
+<div class="row g-3">
+    <!-- Left Filter Panel (FT1–FT11) -->
+    <div class="col-12 col-lg-3" id="filterSidebarCol">
+        <div class="filter-panel-card sticky-top" style="top: 80px; z-index: 900;">
+            <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-light">
+                <span class="fw-bold text-dark small text-uppercase">Filters</span>
+                <span class="badge bg-primary" id="activeFilterBadge">Active Filters: 0</span>
+            </div>
+
+            <div class="accordion accordion-flush" id="filterAccordion" style="max-height: calc(100vh - 160px); overflow-y: auto;">
+                <!-- Section 1: Period -->
+                <div class="accordion-item border-bottom">
+                    <h2 class="accordion-header" id="headingPeriod">
+                        <button class="accordion-button py-2 px-3 fw-bold small collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePeriod">
+                            1. Period
+                        </button>
+                    </h2>
+                    <div id="collapsePeriod" class="accordion-collapse collapse" data-bs-parent="#filterAccordion">
+                        <div class="accordion-body p-2">
+                            <!-- Calendar Only From/To Date Picker (FT8) -->
+                            <div class="mb-2">
+                                <label class="filter-label">From Date</label>
+                                <input type="date" class="form-control form-control-sm calendar-only-input" id="filterFromDate" onkeydown="return false;">
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">To Date</label>
+                                <input type="date" class="form-control form-control-sm calendar-only-input" id="filterToDate" onkeydown="return false;">
+                            </div>
+                            <!-- Period granular levels (FT2) -->
+                            <div class="mb-2" id="filterGroupYear">
+                                <label class="filter-label">Year</label>
+                                <div class="custom-multi-select" data-filter="year"></div>
+                            </div>
+                            <div class="mb-2" id="filterGroupMonth">
+                                <label class="filter-label">Month</label>
+                                <div class="custom-multi-select" data-filter="month"></div>
+                            </div>
+                            <div class="mb-2" id="filterGroupWeek">
+                                <label class="filter-label">Week</label>
+                                <div class="custom-multi-select" data-filter="week"></div>
+                            </div>
+                            <div class="mb-2" id="filterGroupDay">
+                                <label class="filter-label">Day</label>
+                                <div class="custom-multi-select" data-filter="day"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Document & Terms -->
+                <div class="accordion-item border-bottom">
+                    <h2 class="accordion-header" id="headingDocTerms">
+                        <button class="accordion-button py-2 px-3 fw-bold small collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDocTerms">
+                            2. Document & Terms
+                        </button>
+                    </h2>
+                    <div id="collapseDocTerms" class="accordion-collapse collapse" data-bs-parent="#filterAccordion">
+                        <div class="accordion-body p-2">
+                            <div class="mb-2">
+                                <label class="filter-label">Document</label>
+                                <div class="custom-multi-select" data-filter="document"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Document Type</label>
+                                <div class="custom-multi-select" data-filter="documentType"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Sales Type</label>
+                                <div class="custom-multi-select" data-filter="salesType"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Sales From Location</label>
+                                <div class="custom-multi-select" data-filter="salesFromLocation"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Customer -->
+                <div class="accordion-item border-bottom">
+                    <h2 class="accordion-header" id="headingCustomer">
+                        <button class="accordion-button py-2 px-3 fw-bold small collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCustomer">
+                            3. Customer
+                        </button>
+                    </h2>
+                    <div id="collapseCustomer" class="accordion-collapse collapse" data-bs-parent="#filterAccordion">
+                        <div class="accordion-body p-2">
+                            <div class="mb-2">
+                                <label class="filter-label">BP Code</label>
+                                <div class="custom-multi-select" data-filter="bpCode"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">BP Name</label>
+                                <div class="custom-multi-select" data-filter="bpName"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Group</label>
+                                <div class="custom-multi-select" data-filter="group"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Industry</label>
+                                <div class="custom-multi-select" data-filter="industry"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">BP Project</label>
+                                <div class="custom-multi-select" data-filter="bpProject"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4: Sales Employee -->
+                <div class="accordion-item border-bottom">
+                    <h2 class="accordion-header" id="headingSalesEmp">
+                        <button class="accordion-button py-2 px-3 fw-bold small collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSalesEmp">
+                            4. Sales Employee
+                        </button>
+                    </h2>
+                    <div id="collapseSalesEmp" class="accordion-collapse collapse" data-bs-parent="#filterAccordion">
+                        <div class="accordion-body p-2">
+                            <div class="mb-2">
+                                <label class="filter-label">Row Sales Employee</label>
+                                <div class="custom-multi-select" data-filter="rowSalesEmployee"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">BP Sales Employee</label>
+                                <div class="custom-multi-select" data-filter="bpSalesEmployee"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 5: Ship-To Location -->
+                <div class="accordion-item border-bottom">
+                    <h2 class="accordion-header" id="headingShipTo">
+                        <button class="accordion-button py-2 px-3 fw-bold small collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseShipTo">
+                            5. Ship-To Location
+                        </button>
+                    </h2>
+                    <div id="collapseShipTo" class="accordion-collapse collapse" data-bs-parent="#filterAccordion">
+                        <div class="accordion-body p-2">
+                            <div class="mb-2">
+                                <label class="filter-label">Region</label>
+                                <div class="custom-multi-select" data-filter="region"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">State</label>
+                                <div class="custom-multi-select" data-filter="state"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">City</label>
+                                <div class="custom-multi-select" data-filter="city"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Country</label>
+                                <div class="custom-multi-select" data-filter="country"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 6: Item Groups -->
+                <div class="accordion-item border-bottom">
+                    <h2 class="accordion-header" id="headingItemGroups">
+                        <button class="accordion-button py-2 px-3 fw-bold small collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseItemGroups">
+                            6. Item Groups
+                        </button>
+                    </h2>
+                    <div id="collapseItemGroups" class="accordion-collapse collapse" data-bs-parent="#filterAccordion">
+                        <div class="accordion-body p-2">
+                            <div class="mb-2">
+                                <label class="filter-label">Item Group</label>
+                                <div class="custom-multi-select" data-filter="itemGroup"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Sub Group 1</label>
+                                <div class="custom-multi-select" data-filter="subGroup1"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Sub Group 2</label>
+                                <div class="custom-multi-select" data-filter="subGroup2"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 7: Item: General -->
+                <div class="accordion-item border-bottom">
+                    <h2 class="accordion-header" id="headingItemGen">
+                        <button class="accordion-button py-2 px-3 fw-bold small collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseItemGen">
+                            7. Item: General
+                        </button>
+                    </h2>
+                    <div id="collapseItemGen" class="accordion-collapse collapse" data-bs-parent="#filterAccordion">
+                        <div class="accordion-body p-2">
+                            <div class="mb-2">
+                                <label class="filter-label">Item Code</label>
+                                <div class="custom-multi-select" data-filter="itemCode"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Brand</label>
+                                <div class="custom-multi-select" data-filter="brand"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">MOC</label>
+                                <div class="custom-multi-select" data-filter="moc"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Made To Order</label>
+                                <div class="custom-multi-select" data-filter="madeToOrder"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">UoM</label>
+                                <div class="custom-multi-select" data-filter="uom"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 8: Item Attributes (all 20 attributes) -->
+                <div class="accordion-item border-bottom">
+                    <h2 class="accordion-header" id="headingItemAttrs">
+                        <button class="accordion-button py-2 px-3 fw-bold small collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseItemAttrs">
+                            8. Item Attributes
+                        </button>
+                    </h2>
+                    <div id="collapseItemAttrs" class="accordion-collapse collapse" data-bs-parent="#filterAccordion">
+                        <div class="accordion-body p-2">
+                            <div class="mb-2">
+                                <label class="filter-label">Clamps Min Range mm</label>
+                                <div class="custom-multi-select" data-attr-filter="clampsMinRange"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Clamps Max Range mm</label>
+                                <div class="custom-multi-select" data-attr-filter="clampsMaxRange"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Assy EC1</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseAssyEc1"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Assy EC2</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseAssyEc2"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Assy Hose</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseAssyHose"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Assy Hose Guard</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseAssyHoseGuard"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Coupling Dash Size</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseCouplingDashSize"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Coupling WP</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseCouplingWp"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Fittings Dash Size</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseFittingsDashSize"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Fittings Type</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseFittingsType"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Guard ID mm</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseGuardIdMm"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Size (mm)</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseSizeMm"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose WP (Bar)</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseWpBar"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Rub Exp Joints ID (mm)</label>
+                                <div class="custom-multi-select" data-attr-filter="rubExpJointsIdMm"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Rub Exp Joints WP (Bar)</label>
+                                <div class="custom-multi-select" data-attr-filter="rubExpJointsWpBar"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Rub Exp Joints Falnge Type</label>
+                                <div class="custom-multi-select" data-attr-filter="rubExpJointsFalngeType"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Reel Type</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseReelType"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Reel Size</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseReelSize"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Reel Arms</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseReelArms"></div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="filter-label">Hose Reel Hose Type</label>
+                                <div class="custom-multi-select" data-attr-filter="hoseReelHoseType"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Main Analytics Area -->
+    <div class="col-12 col-lg-9" id="analyticsContentCol">
+        <!-- Empty Results Message (FT11) -->
+        <div id="noDataContainer" class="d-none">
+            <div class="no-data-card mb-4">
+                <i class="bi bi-inbox text-muted display-4 d-block mb-3"></i>
+                <div class="no-data-text">No data for selected filters</div>
+                <div class="text-muted small mt-2">Try clearing one or more active filters to view sales trends.</div>
+                <button class="btn btn-outline-primary btn-sm mt-3" onclick="document.getElementById('btnResetFilters').click();">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Filters
+                </button>
+            </div>
+        </div>
+
+        <div id="analyticsChartsAndTable">
+            <!-- Main Analytics Chart (CH1, CH2, CH3) -->
+            <div class="chart-card mb-4" id="mainChartCard">
+                <div class="chart-header">
+                    <h5 class="chart-title" id="mainChartTitle">Sales Trend by Period</h5>
+                    <span class="badge bg-light text-dark border small" id="mainChartSubtitle">Monthly &bull; Revenue ₹</span>
+                </div>
+                <div style="position: relative; height: 380px;">
+                    <canvas id="mainSalesChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Exactly 15 Breakdown Charts in Specified Order (CH4) -->
+            <div class="row g-3 mb-4" id="breakdownChartsGrid">
+                <!-- 1. Domestic vs Export -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="domestic_vs_export">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">1. Domestic vs Export</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_domestic_vs_export"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Region -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="region">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">2. Region</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_region"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Ship-To State -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="state">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">3. Ship-To State</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_state"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Sales From Location -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="sales_from_location">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">4. Sales From Location</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_sales_from_location"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Item Group -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="item_group">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">5. Item Group</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_item_group"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. Sub Group 1 -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="sub_group1">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">6. Sub Group 1</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_sub_group1"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. Sub Group 2 -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="sub_group2">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">7. Sub Group 2</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_sub_group2"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 8. Brand -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="brand">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">8. Brand</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_brand"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 9. Row Sales Employee -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="row_sales_employee">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">9. Row Sales Employee</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_row_sales_employee"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 10. BP Sales Employee -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="bp_sales_employee">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">10. BP Sales Employee</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_bp_sales_employee"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 11. Credit vs Advance -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="sales_type">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">11. Credit vs Advance</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_sales_type"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 12. Top N Customers (CH9 with input box in own header) -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="top_customers">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">12. Top N Customers</h6>
+                            <div class="d-flex align-items-center gap-1">
+                                <label for="topNInput" class="small text-muted mb-0">N:</label>
+                                <input type="number" id="topNInput" class="form-control form-control-sm top-n-input" value="50" min="2" max="50" step="1">
+                            </div>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_top_customers"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 13. Customer Group -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="customer_group">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">13. Customer Group</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_customer_group"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 14. Industry -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="industry">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">14. Industry</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_industry"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 15. BP Project -->
+                <div class="col-12 col-xl-6 chart-item" data-chart-id="bp_project">
+                    <div class="chart-card h-100">
+                        <div class="chart-header">
+                            <h6 class="chart-title">15. BP Project</h6>
+                        </div>
+                        <div class="breakdown-scroll-container" style="position: relative; height: 260px;">
+                            <canvas id="chart_bp_project"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detail Table (TB1–TB5) -->
+            <div class="table-card mb-4" id="detailTableCard">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-table text-primary me-2"></i>Sales Line Details</h5>
+                        <div class="text-muted small">View-only transaction line items</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="text-muted small fw-medium" id="tableRangeLabel">Rows 1–50 of 0</span>
+                        <div class="btn-group btn-group-sm">
+                            <button id="btnTablePrev" class="btn btn-outline-secondary" type="button" disabled title="Previous Page">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                            <button id="btnTableNext" class="btn btn-outline-secondary" type="button" disabled title="Next Page">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                    <table class="table table-hover table-striped sales-detail-table align-middle mb-0">
+                        <thead class="sticky-top">
+                            <tr id="tableHeaderRow">
+                                <th data-col="index" class="text-center" style="width: 50px;">#</th>
+                                <th data-col="DocNum" class="text-end">DocNum <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                                <th data-col="Document">Document <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                                <th data-col="Document Type">Document Type <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                                <th data-col="Doc Date">Doc Date <i class="bi bi-sort-down text-primary" id="sortIcon_DocDate"></i></th>
+                                <th data-col="BP Name">BP Name <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                                <th data-col="Item Code">Item Code <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                                <th data-col="Quantity" class="text-end">Quantity <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                                <th data-col="UoM">UoM <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                                <th data-col="Row Total (After Doc Disc)" class="text-end">Row Total (After Doc Disc) <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                                <th data-col="Row Sales Employee">Row Sales Employee <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                                <th data-col="BP Sales Employee">BP Sales Employee <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailTableBody">
+                            <tr>
+                                <td colspan="12" class="text-center text-muted py-4">Loading detail records...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

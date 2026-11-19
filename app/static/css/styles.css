@@ -1,0 +1,470 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Sales Dashboard – Executive Sapphire Corporate Styles
+   Modern, elegant, professional, management-ready enterprise analytics.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+    --brand-navy: #0A2540;
+    --brand-sapphire: #0F3B6C;
+    --brand-sapphire-light: #165BAA;
+    --brand-cyan: #0284C7;
+    --brand-emerald: #0D9488;
+    --brand-negative: #DC2626;
+    --brand-dark: #0F172A;
+    --brand-primary: #0F3B6C;
+    --brand-secondary: #0D9488;
+    --bg-page: #F6F8FB;
+    --bg-surface: #FFFFFF;
+    --border-color: #E2E8F0;
+    --border-light: #EDF2F7;
+    --text-main: #1E293B;
+    --text-muted: #64748B;
+    --text-light: #94A3B8;
+    --shadow-xs: 0 1px 2px rgba(10, 37, 64, 0.04);
+    --shadow-sm: 0 1px 3px rgba(10, 37, 64, 0.06), 0 1px 2px rgba(10, 37, 64, 0.04);
+    --shadow-card: 0 2px 6px rgba(10, 37, 64, 0.05), 0 1px 3px rgba(10, 37, 64, 0.03);
+    --shadow-hover: 0 6px 16px -2px rgba(10, 37, 64, 0.09), 0 2px 6px -1px rgba(10, 37, 64, 0.04);
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+}
+
+body, .portal-body {
+    background-color: var(--bg-page);
+    color: var(--text-main);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+}
+
+/* ─── Top Navbar ───────────────────────────────────────────────────────────── */
+.app-executive-navbar {
+    background: linear-gradient(135deg, #09264A 0%, #0F3B6C 60%, #17549C 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 16px -2px rgba(9, 38, 74, 0.22);
+}
+
+.brand-logo-frame {
+    display: inline-flex;
+    align-items: center;
+    background: #FFFFFF;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.hosexperts-logo {
+    display: inline-block;
+    vertical-align: middle;
+    width: auto;
+    height: 38px;
+    max-height: 38px;
+    object-fit: contain;
+}
+
+.nav-portal-badge {
+    background: rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 20px;
+    color: #FFFFFF;
+    font-weight: 500;
+    font-size: 0.75rem;
+    padding: 0.35rem 0.85rem;
+    letter-spacing: 0.02em;
+}
+
+.nav-pill-link {
+    color: #FFFFFF !important;
+    font-weight: 600;
+    font-size: 0.825rem;
+    padding: 0.35rem 0.85rem !important;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    transition: all 0.18s ease;
+}
+
+.nav-pill-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.nav-db-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    padding: 0.28rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    color: #F8FAFC;
+}
+
+.live-pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #10B981;
+    display: inline-block;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35);
+}
+
+/* ─── Loading Overlay ──────────────────────────────────────────────────────── */
+#loadingOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(10, 37, 64, 0.85);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+#loadingOverlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ─── Granularity Panel ────────────────────────────────────────────────────── */
+.selection-card {
+    background: #FFFFFF;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.granularity-header {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--brand-sapphire);
+}
+
+.selection-group-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    margin-bottom: 0;
+}
+
+.btn-group-toggle .btn {
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 0.35rem 0.8rem;
+}
+
+.btn-outline-primary {
+    color: var(--brand-sapphire);
+    border-color: #CBD5E1;
+}
+
+.btn-outline-primary:hover,
+.btn-check:checked + .btn-outline-primary {
+    background-color: var(--brand-sapphire);
+    border-color: var(--brand-sapphire);
+    color: #FFFFFF;
+}
+
+/* ─── Summary Cards (HD4, HD5, HD6) ────────────────────────────────────────── */
+.kpi-card {
+    background: #FFFFFF;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: 1.1rem 1.25rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    height: 100%;
+}
+
+.kpi-card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+}
+
+.kpi-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+}
+
+.kpi-value {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: var(--brand-navy);
+    line-height: 1.2;
+    font-feature-settings: 'tnum' on, 'lnum' on;
+}
+
+.kpi-subtext {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+    font-feature-settings: 'tnum' on, 'lnum' on;
+}
+
+.kpi-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+}
+
+/* ─── Filter Panel ─────────────────────────────────────────────────────────── */
+.filter-panel-card {
+    background: #FFFFFF;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.filter-section-header {
+    background: #F8FAFC;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.65rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-main);
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0;
+}
+
+.filter-section-header:hover {
+    background: #F1F5F9;
+}
+
+.filter-section-body {
+    padding: 0.75rem 0.9rem;
+    background: #FFFFFF;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.filter-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.25rem;
+}
+
+/* Multi-select Dropdown styling */
+.custom-multi-select {
+    position: relative;
+    width: 100%;
+}
+
+.multi-select-toggle {
+    width: 100%;
+    text-align: left;
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: var(--radius-sm);
+    padding: 0.35rem 0.65rem;
+    font-size: 0.8rem;
+    color: var(--text-main);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    min-height: 33px;
+}
+
+.multi-select-toggle:hover {
+    border-color: #94A3B8;
+}
+
+.multi-select-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    min-width: 240px;
+    max-height: 300px;
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 10px 25px -5px rgba(10, 37, 64, 0.15);
+    z-index: 1050;
+    display: none;
+    flex-direction: column;
+}
+
+.multi-select-menu.show {
+    display: flex;
+}
+
+.multi-select-search {
+    padding: 0.4rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.multi-select-search input {
+    width: 100%;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.78rem;
+    border: 1px solid #CBD5E1;
+    border-radius: 4px;
+}
+
+.multi-select-options {
+    overflow-y: auto;
+    max-height: 220px;
+    padding: 0.3rem 0;
+}
+
+.multi-select-option {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.multi-select-option:hover {
+    background: #F1F5F9;
+}
+
+.multi-select-option.stale {
+    color: #94A3B8;
+    background-color: #F8FAFC;
+}
+
+.multi-select-option.stale .badge {
+    background-color: #CBD5E1 !important;
+    color: #475569 !important;
+}
+
+/* Date picker input */
+.calendar-only-input {
+    background-color: #FFFFFF !important;
+    cursor: pointer !important;
+    font-size: 0.8rem;
+}
+
+/* ─── Main Chart & Breakdown Charts ────────────────────────────────────────── */
+.chart-card {
+    background: #FFFFFF;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: 1.1rem;
+    margin-bottom: 1.5rem;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.chart-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--brand-navy);
+    margin-bottom: 0;
+}
+
+.breakdown-scroll-container {
+    overflow-y: auto;
+    max-height: 380px;
+    padding-right: 4px;
+}
+
+.top-n-input {
+    width: 60px;
+    font-size: 0.78rem;
+    padding: 0.2rem 0.4rem;
+    text-align: center;
+    border: 1px solid #CBD5E1;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+/* ─── Detail Table (TB1–TB5) ───────────────────────────────────────────────── */
+.table-card {
+    background: #FFFFFF;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: 1.1rem;
+}
+
+.sales-detail-table {
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.sales-detail-table th {
+    background-color: #F8FAFC;
+    color: var(--text-main);
+    font-weight: 700;
+    border-bottom: 2px solid var(--border-color);
+    padding: 0.55rem 0.75rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.sales-detail-table th:hover {
+    background-color: #F1F5F9;
+}
+
+.sales-detail-table td {
+    padding: 0.45rem 0.75rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.sales-detail-table tr:hover td {
+    background-color: #F8FAFC;
+}
+
+/* ─── No Data State (FT11) ─────────────────────────────────────────────────── */
+.no-data-card {
+    background: #FFFFFF;
+    border: 1px dashed #CBD5E1;
+    border-radius: var(--radius-md);
+    padding: 4rem 2rem;
+    text-align: center;
+}
+
+.no-data-text {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+/* ─── Print & PDF Export (HD3) ─────────────────────────────────────────────── */
+@media print {
+    .portal-body, main {
+        background: #FFFFFF !important;
+        padding: 0 !important;
+    }
+    nav, .granularity-card, .filter-col, .table-card, footer, .btn, #loadingOverlay {
+        display: none !important;
+    }
+    .print-only-header {
+        display: block !important;
+    }
+}

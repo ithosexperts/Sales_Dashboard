@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: sales-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: ENVIRONMENT
+        value: "production"
+      - key: APP_NAME
+        value: "Sales Dashboard"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: API_BASE_URL
+        value: "https://api.hosexperts.com:85/apiv2.php"
+      - key: API_DATABASE
+        value: "OperationsDB"
+      - key: API_AUTH_TOKEN
+        sync: false
+      - key: API_USERNAME
+        sync: false
+      - key: API_PASSWORD
+        sync: false
